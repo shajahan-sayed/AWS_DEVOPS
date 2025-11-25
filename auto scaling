@@ -1,0 +1,213 @@
+What is Auto Scaling (ASG) in AWS?
+
+Auto Scaling is an AWS service that automatically adds or removes EC2 instances based on demand.
+Think of it like a system that grows during heavy traffic and shrinks when traffic is low — saving money and improving performance.
+
+⭐ Why Auto Scaling?
+Feature	Meaning
+High Availability	Your app always has enough instances to handle load.
+Fault Tolerance	If an EC2 instance fails → ASG replaces it automatically.
+Cost Optimization	Unused instances are terminated; you pay only for what you need.
+Elasticity	Automatically scales out (add instances) or scales in (remove instances).
+🧠 Core Concepts of Auto Scaling
+1️⃣ Launch Template
+
+Defines how to create an EC2 instance.
+It includes:
+
+AMI
+
+Instance type
+
+SG
+
+User data (startup script)
+
+Key pair
+
+This is the blueprint for new instances.
+
+2️⃣ Auto Scaling Group (ASG)
+
+This is the engine of auto scaling.
+It controls:
+
+Minimum capacity (always running)
+
+Desired capacity (target)
+
+Maximum capacity (upper limit)
+
+VPC subnets (AZ redundancy)
+
+Health checks & replacement
+
+3️⃣ Scaling Policies
+
+Rules that decide when to add or remove EC2 instances.
+
+Examples:
+
+CPU > 70% for 2 minutes → scale out
+
+CPU < 30% for 5 minutes → scale in
+
+Request count per target > 1000 → scale out
+
+Target tracking → keep average CPU around 50%
+
+4️⃣ Load Balancer (ALB)
+
+Spreads traffic evenly across EC2 instances.
+ALB + ASG is the classic production combination.
+
+ASG registers new EC2s into ALB automatically.
+
+🧪 FULL PROJECT: Auto Scaling with ALB (From Scratch)
+
+This is a complete, practical, real-world setup.
+
+✔ Step 1: Create a Launch Template
+
+Console → EC2 → Launch Templates → Create
+
+Include:
+
+AMI: Amazon Linux 2
+
+Instance Type: t2.micro
+
+Security Group: allow 80 inbound
+
+User Data (optional): simple web server
+
+#!/bin/bash
+yum update -y
+yum install httpd -y
+systemctl start httpd
+systemctl enable httpd
+echo "<h1>Server $(hostname) responding</h1>" > /var/www/html/index.html
+
+
+This ensures every new EC2 created by ASG runs a web server.
+
+✔ Step 2: Create Auto Scaling Group
+
+Console → EC2 → Auto Scaling → Create ASG
+
+Select Launch Template
+
+Choose at least 2 AZs for high availability (e.g., us-east-1a, us-east-1b)
+
+Set:
+
+Min: 1
+Desired: 1
+Max: 3
+
+
+Leave scaling policies for now.
+
+✔ Step 3: Attach ALB (Load Balancer)
+
+While configuring the ASG:
+
+Choose Attach to a new Application Load Balancer
+
+Listener: HTTP 80
+
+Security Group: allow 80 inbound
+
+Target group: create new (Instance mode)
+
+Health checks: /
+
+ASG will now register instances automatically under the ALB.
+
+✔ Step 4: Add Scaling Policies
+
+Choose Target Tracking Scaling Policy:
+
+Metric: Average CPU Utilization
+
+Target: 70%
+
+Cooldown: default is fine
+
+This means:
+
+ASG will try to keep average CPU at 70%.
+
+If CPU rises → add instance
+
+If CPU drops → remove instance
+
+✔ Step 5: Load Test
+
+To test scaling out, SSH into your instance:
+
+sudo yum install stress -y
+stress --cpu 4 --timeout 300
+
+
+Or use online tools like Loader.io / JMeter / Apache Benchmark.
+
+This will push CPU above 70% and trigger a scale-out event.
+
+After some time, you will see:
+
+EC2 → new instance launched
+
+Target Group → new healthy target
+
+ALB → traffic split between instances
+
+🎯 INTERVIEW-WORTHY UNDERSTANDING
+⭐ Q1: What problems does Auto Scaling solve?
+
+Handles traffic spikes automatically
+
+Ensures application availability
+
+Replaces failed instances
+
+Reduces cost by removing idle servers
+
+⭐ Q2: Types of scaling policies
+Policy	Explanation
+Target Tracking	Like thermostat — keeps metric at target (most common).
+Simple Scaling	If CPU > 70% → add 1 instance.
+Step Scaling	Multiple steps based on severity (20% → +1; 40% → +2).
+Scheduled Scaling	Scale at specific time (e.g., business hours).
+⭐ Q3: Health checks?
+
+ASG performs:
+
+EC2 Status Checks
+
+ALB Health Checks (recommended)
+
+If instance fails → ASG immediately replaces it.
+
+⭐ Q4: Launch Template vs Launch Configuration
+Launch Template	Launch Config
+Newer, recommended	Legacy
+Versioning support	No versioning
+Can use Spot + On-Demand mix	No
+Required for new features	Not supported
+🧱 ARCHITECTURE DIAGRAM (Simple Explanation)
+        ┌─────────────────────────┐
+        │ Application Load Balancer│
+        └───────────┬─────────────┘
+                    │
+            ┌───────┴────────┐
+            │ Auto Scaling Group│
+            └───────┬────────┘
+       ┌────────────┼────────────┐
+       │            │            │
+ Instance 1   Instance 2   Instance 3
+
+
+ALB forwards traffic
+
+ASG ensures right number of instances
